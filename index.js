@@ -26,7 +26,7 @@ var options = {
 };
 
 https.createServer(options, function (incomingRequest, incomingResponse) {
-  var cacheFile = "cache" + incomingRequest.url;
+  var cacheFile = "cache" + incomingRequest.url + "-" + incomingRequest.method;
   if(fs.existsSync(cacheFile)) {
     incomingResponse.end(fs.readFileSync(cacheFile));
   } else {
@@ -35,7 +35,8 @@ https.createServer(options, function (incomingRequest, incomingResponse) {
     var forwardRequest = https.request({
       host: "staging.services.which.co.uk",
       path: incomingRequest.url,
-      headers: headers
+      headers: headers,
+      method: incomingRequest.method
     }, function(forwardResponse) {
       var responseString = "";
       forwardResponse.on("data", function(chunk) {
@@ -53,10 +54,17 @@ https.createServer(options, function (incomingRequest, incomingResponse) {
         cacheDirectories.forEach(function(element) {
           if(!fs.existsSync(element)) fs.mkdirSync(element);
         });
-        fs.writeFileSync("cache" + incomingRequest.url, responseString);
+        fs.writeFileSync(cacheFile, responseString);
         incomingResponse.end(responseString);
        });
     });
-    forwardRequest.end();
+    var incomingRequestBody = "";
+    incomingRequest.on("data", function(chunk) {
+      incomingRequestBody += chunk;
+    });
+    incomingRequest.on("end", function() {
+      forwardRequest.write(incomingRequestBody);
+      forwardRequest.end();
+    });
   }
 }).listen(8000);
